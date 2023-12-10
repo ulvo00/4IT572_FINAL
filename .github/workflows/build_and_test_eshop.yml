@@ -91,3 +91,33 @@ jobs:
             - name: Run tests
               run: |
                 npm run test -- --colors
+
+    Deploy:
+        needs: [Build, Test]
+        if: ${{ github.ref == 'refs/heads/main' }}
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Code checkout
+            uses: actions/checkout@v4.1.1
+            with:
+              token: ${{ secrets.WORKFLOW_TOKEN }}
+
+          - name: Setup Python
+            uses: actions/setup-python@v5.0.0
+            with:
+              python-version: '3.11'
+
+          - name: Install Ansible Boto Boto3
+            run: sudo pip3 install ansible boto boto3
+
+          - name: Deploy with ansible playbook
+            env:
+              ANSIBLE_HOST_KEY_CHECKING: False
+              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+            run: |
+              echo "${{secrets.PEM_KEY}}" > test.pem
+              chmod 400 test.pem
+              sudo ansible-playbook ansible/ec2_deploy.yml --user ec2-user --key-file test.pem -e "access_key=${AWS_ACCESS_KEY_ID}" -e "secret_key=${AWS_SECRET_ACCESS_KEY}" -e "session_token=${AWS_SESSION_TOKEN}"
